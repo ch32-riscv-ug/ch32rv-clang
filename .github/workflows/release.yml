@@ -1,0 +1,116 @@
+# Build the RISC-V-only clang + lld for every host the Arduino Boards Manager
+# serves, and publish them as one GitHub release.
+#
+# Run: push a tag v<package version> (e.g. v23.1.5-1; the LLVM version is the
+# part before the last '-'), or start it by hand with the two versions.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      llvm_version:
+        description: "LLVM release, e.g. 23.1.5"
+        required: true
+      package_version:
+        description: "Package version, e.g. 23.1.5-1"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      llvm: ${{ steps.v.outputs.llvm }}
+      pkg: ${{ steps.v.outputs.pkg }}
+    steps:
+      - id: v
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            pkg="${{ inputs.package_version }}"; llvm="${{ inputs.llvm_version }}"
+          else
+            pkg="${GITHUB_REF_NAME#v}"; llvm="${pkg%-*}"
+          fi
+          echo "pkg=$pkg" >> "$GITHUB_OUTPUT"
+          echo "llvm=$llvm" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: versions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake ccache
+
+      - name: Tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja ccache
+
+      - name: Tools (Windows)
+        if: runner.os == 'Windows'
+        run: choco install -y ninja
+
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: ccache
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-
+
+      - name: Build
+        shell: bash
+        env:
+          CCACHE: ${{ runner.os != 'Windows' && '1' || '0' }}
+          LINK_JOBS: "2"
+        run: scripts/build.sh "${{ needs.versions.outputs.llvm }}" "${{ needs.versions.outputs.pkg }}" "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [versions, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ needs.versions.outputs.pkg }}"
+          ls -l dist
+          gh release create "$tag" dist/* --repo "${{ github.repository }}" \
+            --title "ch32rv-clang ${{ needs.versions.outputs.pkg }} (LLVM ${{ needs.versions.outputs.llvm }})" \
+            --notes "RISC-V-only clang + lld from LLVM ${{ needs.versions.outputs.llvm }}, for the CH32 Arduino core. See README." \
+            || gh release upload "$tag" dist/* --repo "${{ github.repository }}" --clobber
