@@ -16,6 +16,10 @@ LLVM_VERSION=${1:?llvm version, e.g. 23.1.5}
 PKG_VERSION=${2:?package version, e.g. 23.1.5-1}
 TARGET=${3:?host target triple, e.g. x86_64-unknown-linux-gnu}
 
+case "$LLVM_VERSION" in
+  *[!0-9.]*|"") echo "llvm version must look like 23.1.5: got '$LLVM_VERSION'" >&2; exit 2 ;;
+esac
+
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${WORK:-$ROOT/work}
 DIST=$ROOT/dist

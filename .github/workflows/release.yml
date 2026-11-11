@@ -1,8 +1,9 @@
 # Build the RISC-V-only clang + lld for every host the Arduino Boards Manager
 # serves, and publish them as one GitHub release.
 #
-# Run: push a tag v<package version> (e.g. v23.1.5-1; the LLVM version is the
-# part before the last '-'), or start it by hand with the two versions.
+# Run: push a tag v<package version>, or start it by hand with the package
+# version. The package version is <LLVM version>-<build> (e.g. 23.1.5-1); the
+# LLVM version is the part before the last '-'.
 name: release
 
 on:
@@ -10,9 +11,6 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      llvm_version:
-        description: "LLVM release, e.g. 23.1.5"
-        required: true
       package_version:
         description: "Package version, e.g. 23.1.5-1"
         required: true
@@ -31,10 +29,16 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            pkg="${{ inputs.package_version }}"; llvm="${{ inputs.llvm_version }}"
+            pkg="${{ inputs.package_version }}"
           else
-            pkg="${GITHUB_REF_NAME#v}"; llvm="${pkg%-*}"
+            pkg="${GITHUB_REF_NAME#v}"
           fi
+          pkg="${pkg#v}"
+          if ! [[ "$pkg" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
+            echo "package version must be <LLVM version>-<build>, e.g. 23.1.5-1: got '$pkg'" >&2
+            exit 1
+          fi
+          llvm="${pkg%-*}"
           echo "pkg=$pkg" >> "$GITHUB_OUTPUT"
           echo "llvm=$llvm" >> "$GITHUB_OUTPUT"
 
@@ -49,9 +53,9 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-22.04-arm
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-15-intel
           - target: aarch64-apple-darwin
-            os: macos-14
+            os: macos-15
           - target: x86_64-pc-windows-msvc
             os: windows-2022
     runs-on: ${{ matrix.os }}

@@ -33,8 +33,8 @@ business (ch32-device-data's core table): using it on a core without XW
 |---|---|---|
 | x86_64-unknown-linux-gnu | ubuntu-22.04 | glibc 2.35 or later; libstdc++ linked in |
 | aarch64-unknown-linux-gnu | ubuntu-22.04-arm | as above |
-| x86_64-apple-darwin | macos-13 | macOS 11 or later |
-| aarch64-apple-darwin | macos-14 | macOS 11 or later |
+| x86_64-apple-darwin | macos-15-intel | macOS 11 or later |
+| aarch64-apple-darwin | macos-15 | macOS 11 or later |
 | x86_64-pc-windows-msvc | windows-2022 | MSVC runtime linked in |
 
 ## Versions

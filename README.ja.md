@@ -33,8 +33,8 @@ WCH QingKe の「XW」圧縮命令は LLVM の `Xwchc` 拡張です
 |---|---|---|
 | x86_64-unknown-linux-gnu | ubuntu-22.04 | glibc 2.35 以降。libstdc++ は静的リンク |
 | aarch64-unknown-linux-gnu | ubuntu-22.04-arm | 同上 |
-| x86_64-apple-darwin | macos-13 | macOS 11 以降 |
-| aarch64-apple-darwin | macos-14 | macOS 11 以降 |
+| x86_64-apple-darwin | macos-15-intel | macOS 11 以降 |
+| aarch64-apple-darwin | macos-15 | macOS 11 以降 |
 | x86_64-pc-windows-msvc | windows-2022 | MSVC ランタイムは静的リンク |
 
 ## 版
