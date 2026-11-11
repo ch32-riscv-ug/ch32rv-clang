@@ -9,7 +9,8 @@
 #      and <archive>.sha256.
 #
 # Environment: JOBS (parallel compile jobs, default: all CPUs), LINK_JOBS
-# (parallel link jobs, default 2), CCACHE=1 to compile through ccache.
+# (parallel link jobs, default 2), CCACHE=1 to compile through ccache,
+# CONFIGURE_ONLY=1 to stop after cmake (a quick check of the source and flags).
 set -euo pipefail
 
 LLVM_VERSION=${1:?llvm version, e.g. 23.1.5}
@@ -44,14 +45,16 @@ esac
 if [ ! -d "$SRC" ]; then
   url=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/llvm-project-$LLVM_VERSION.src.tar.xz
   curl -fsSL -o "$WORK/src.tar.xz" "$url"
-  # The test trees are not built (LLVM_INCLUDE_TESTS=OFF) and hold symlinks
-  # that Git for Windows' tar cannot create (it gives up on the archive), as
-  # do llvm/utils/mlgo-utils and lldb (not built either); leave them out on
-  # every host.
+  # The test trees and lldb are not built (LLVM_INCLUDE_TESTS=OFF) and hold
+  # symlinks that Git for Windows' tar cannot create (it gives up on the
+  # archive); leave them out on every host. llvm/utils/mlgo-utils is
+  # configured, so only its three symlinked scripts go.
   top=llvm-project-$LLVM_VERSION.src
+  mlgo=$top/llvm/utils/mlgo-utils
   tar -xJf "$WORK/src.tar.xz" -C "$WORK" \
     --exclude="$top/llvm/test" --exclude="$top/clang/test" --exclude="$top/lld/test" \
-    --exclude="$top/llvm/utils/mlgo-utils" --exclude="$top/lldb"
+    --exclude="$top/lldb" --exclude="$mlgo/combine_training_corpus.py" \
+    --exclude="$mlgo/extract_ir.py" --exclude="$mlgo/make_corpus.py"
   rm -f "$WORK/src.tar.xz"
 fi
 
@@ -87,7 +90,6 @@ cmake_args=(
   -DLLVM_ENABLE_LIBEDIT=OFF
   -DLLVM_ENABLE_LIBPFM=OFF
   -DLLVM_ENABLE_ASSERTIONS=OFF
-  -DCLANG_ENABLE_ARCMT=OFF
   -DCLANG_ENABLE_STATIC_ANALYZER=OFF
   -DCLANG_PLUGIN_SUPPORT=OFF
   -DLLVM_BUILD_LLVM_DYLIB=OFF
@@ -110,6 +112,7 @@ if [ "${CCACHE:-0}" = 1 ]; then
 fi
 
 cmake "${cmake_args[@]}"
+[ "${CONFIGURE_ONLY:-0}" = 1 ] && exit 0
 
 # 3. Build and install only the distribution, stripped.
 rm -rf "$STAGE"
