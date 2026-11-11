@@ -40,12 +40,18 @@ case "$TARGET" in
   *) DARWIN=0 ;;
 esac
 
-# 1. Source: the release's own source tarball (signed tags; we check the
-#    sha256 the release publishes next to it when there is one).
+# 1. Source: the release's own source tarball.
 if [ ! -d "$SRC" ]; then
   url=https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/llvm-project-$LLVM_VERSION.src.tar.xz
   curl -fsSL -o "$WORK/src.tar.xz" "$url"
-  tar -xJf "$WORK/src.tar.xz" -C "$WORK"
+  # The test trees are not built (LLVM_INCLUDE_TESTS=OFF) and hold symlinks
+  # that Git for Windows' tar cannot create (it gives up on the archive), as
+  # do llvm/utils/mlgo-utils and lldb (not built either); leave them out on
+  # every host.
+  top=llvm-project-$LLVM_VERSION.src
+  tar -xJf "$WORK/src.tar.xz" -C "$WORK" \
+    --exclude="$top/llvm/test" --exclude="$top/clang/test" --exclude="$top/lld/test" \
+    --exclude="$top/llvm/utils/mlgo-utils" --exclude="$top/lldb"
   rm -f "$WORK/src.tar.xz"
 fi
 
