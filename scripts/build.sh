@@ -135,8 +135,9 @@ unsigned char b[8];
 int f(unsigned char *p) { return p[3] + p[7]; }
 void _start(void) { b[5] = (unsigned char)f(b); for (;;) { } }
 EOF
+# (lld's default layout: -Ttext=0 would put .text under its 0x10000 image base, which it refuses.)
 "$STAGE/bin/clang$ext" --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e -Oz \
-  -nostdlib -fuse-ld=lld -Wl,-Ttext=0 "$WORK/smoke.c" -o "$WORK/smoke.elf"
+  -nostdlib -fuse-ld=lld "$WORK/smoke.c" -o "$WORK/smoke.elf"
 "$STAGE/bin/llvm-size$ext" "$WORK/smoke.elf"
 
 # 6. Pack.

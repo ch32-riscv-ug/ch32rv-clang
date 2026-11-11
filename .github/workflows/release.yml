@@ -79,20 +79,31 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: ccache
+      # Restored here and saved after the build even when it fails, so a run
+      # that stops late (packing, the smoke test) leaves the next one fast.
+      - name: ccache (restore)
         if: runner.os != 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/ccache
-          key: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-${{ github.run_id }}
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-
 
       - name: Build
         shell: bash
         env:
           CCACHE: ${{ runner.os != 'Windows' && '1' || '0' }}
+          # One place on every host (macOS's default is ~/Library/Caches/ccache).
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
           LINK_JOBS: "2"
         run: scripts/build.sh "${{ needs.versions.outputs.llvm }}" "${{ needs.versions.outputs.pkg }}" "${{ matrix.target }}"
+
+      - name: ccache (save)
+        if: always() && runner.os != 'Windows'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - uses: actions/upload-artifact@v4
         with:
