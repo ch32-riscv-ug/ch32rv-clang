@@ -114,6 +114,8 @@ c_args = [$(printf "'%s', " $OPT)]
 [properties]
 skip_sanity_check = true
 EOF
+  #    No thread-local storage: errno and the rest are plain variables (the
+  #    cores run one thread and set no thread pointer).
   #    printf / scanf: the integer-only variants are the default, so a
   #    program that never formats a float links no floating point; the
   #    float and double ones (__f_vfprintf, __d_vfprintf, ...) are there to
@@ -122,7 +124,8 @@ EOF
     --prefix="$out" --includedir=include --libdir=lib \
     --buildtype=plain -Dmultilib=false -Dtests=false \
     -Dpicocrt=false -Dsemihost=false -Dspecsdir=none \
-    -Dlibgccdir= -Dsingle-thread=true -Dformat-default=integer
+    -Dlibgccdir= -Dsingle-thread=true -Dthread-local-storage=false \
+    -Dformat-default=integer
   ninja -C "$b" -j "$JOBS" install
 
   # 3. libc++ and libc++abi over that picolibc: no exceptions, no RTTI, no
