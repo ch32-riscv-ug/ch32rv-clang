@@ -77,6 +77,8 @@ case "$(uname -s)" in
   # libstdc++ and libgcc go in; glibc stays dynamic.
   *) extra+=(--with-static-standard-libraries) ;;
 esac
+# MAKEINFO=true: no manuals are shipped, and a host without Texinfo (MSYS2)
+# would otherwise stop where bfd's .info looks out of date after unpacking.
 # Installed apart first: <prefix> is a package that already holds other
 # things under lib/ and include/.
 GDB_INST=$WORK/inst
@@ -90,7 +92,7 @@ rm -rf "$GDB_INST"
     --without-lzma --without-zstd --without-xxhash --without-intel-pt \
     --with-gmp="$DEPS" --with-mpfr="$DEPS" --with-expat --with-libexpat-prefix="$DEPS" \
     ${extra[@]+"${extra[@]}"} \
-  && make -j "$JOBS" all-gdb && make install-strip-gdb )
+  && make -j "$JOBS" all-gdb MAKEINFO=true && make install-strip-gdb MAKEINFO=true )
 # Only the program and its data directory: no manuals, and not the
 # gdb-add-index / gstack shell scripts (they drive a native gdb).
 mkdir -p "$PREFIX/bin" "$PREFIX/share"
