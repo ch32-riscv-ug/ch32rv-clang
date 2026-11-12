@@ -1,0 +1,38 @@
+# Publish a release from the archives an earlier release run built, without
+# building them again (when only its publish step failed).
+#
+# Run by hand with the package version and the id of the release run (the
+# number in its URL: .../actions/runs/<id>). The archives are that run's
+# artifacts, kept for 90 days.
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: "Package version, e.g. 23.1.5-2"
+        required: true
+      run_id:
+        description: "The release run whose archives to publish"
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-*-*"
+          path: dist
+          merge-multiple: true
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/publish.sh "${{ inputs.package_version }}" dist

@@ -187,21 +187,7 @@ jobs:
           pattern: "*-*-*"
           path: dist
           merge-multiple: true
-      # GDB is GPL and GMP / MPFR LGPL: their exact sources go with the binaries.
-      - name: Sources
-        run: |
-          mkdir -p dist/sources
-          scripts/build-gdb.sh --sources | while read -r url; do
-            curl -fsSL -o "dist/sources/${url##*/}" "$url"
-          done
-          mv dist/sources/* dist/
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="v${{ needs.versions.outputs.pkg }}"
-          ls -l dist
-          gh release create "$tag" dist/* --repo "${{ github.repository }}" \
-            --title "ch32rv-toolchain ${{ needs.versions.outputs.pkg }} (LLVM ${{ needs.versions.outputs.llvm }})" \
-            --notes "RISC-V-only clang + lld from LLVM ${{ needs.versions.outputs.llvm }} with picolibc, compiler-rt, libc++ and GDB, for the CH32 Arduino core. See README. The gdb, gmp, mpfr and expat archives are the sources of the GDB in the packages." \
-            || gh release upload "$tag" dist/* --repo "${{ github.repository }}" --clobber
+        run: scripts/publish.sh "${{ needs.versions.outputs.pkg }}" dist
