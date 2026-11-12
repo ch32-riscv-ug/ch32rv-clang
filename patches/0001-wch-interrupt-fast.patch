@@ -1,0 +1,126 @@
+clang/LLVM: __attribute__((interrupt("WCH-Interrupt-fast"))) for WCH QingKe
+cores with the Hardware Prologue/Epilogue (HPE) on.
+
+The core saves ra, t0-t6 and a0-a7 (ra, t0-t2, a0-a5 on RV32E) on entry and
+restores them on mret, so the handler saves only the callee-saved and
+floating-point registers it uses. Same spelling as WCH's GCC.
+
+diff -ruN a/clang/include/clang/Basic/Attr.td b/clang/include/clang/Basic/Attr.td
+--- a/clang/include/clang/Basic/Attr.td	2026-11-12 07:36:39.298612241 +0900
++++ b/clang/include/clang/Basic/Attr.td	2026-11-12 07:36:57.852421780 +0900
+@@ -2456,6 +2456,7 @@
+                                      "qci-nonest",
+                                      "SiFive-CLIC-preemptible",
+                                      "SiFive-CLIC-stack-swap",
++                                     "WCH-Interrupt-fast",
+                                    ],
+                                    [
+                                      "supervisor",
+@@ -2465,6 +2466,7 @@
+                                      "qcinonest",
+                                      "SiFiveCLICPreemptible",
+                                      "SiFiveCLICStackSwap",
++                                     "WCHInterruptFast",
+                                    ]>];
+   let ParseKind = "Interrupt";
+   let Documentation = [RISCVInterruptDocs];
+diff -ruN a/clang/include/clang/Basic/AttrDocs.td b/clang/include/clang/Basic/AttrDocs.td
+--- a/clang/include/clang/Basic/AttrDocs.td	2026-11-12 07:36:39.311773546 +0900
++++ b/clang/include/clang/Basic/AttrDocs.td	2026-11-12 07:36:57.853820776 +0900
+@@ -3232,6 +3232,13 @@
+ The SiFive CLIC values may be combined with each other and with the ``machine``
+ attribute value. Any other combination of different values is not allowed.
+ 
++The ``WCH-Interrupt-fast`` value is for WCH's QingKe cores with the Hardware
++Prologue/Epilogue (HPE) enabled: the core itself saves the integer caller-saved
++registers (``ra``, ``t0``-``t6``, ``a0``-``a7``; ``ra``, ``t0``-``t2``,
++``a0``-``a5`` on RV32E) on entry and restores them on ``mret``. The handler
++saves only the callee-saved and floating-point registers it uses. The spelling
++is that of WCH's own GCC, so their example code compiles unchanged.
++
+ Repeated interrupt attribute on the same declaration will cause a warning
+ to be emitted. In case of repeated declarations, the last one prevails.
+ 
+diff -ruN a/clang/lib/CodeGen/Targets/RISCV.cpp b/clang/lib/CodeGen/Targets/RISCV.cpp
+--- a/clang/lib/CodeGen/Targets/RISCV.cpp	2026-11-12 07:36:39.337357093 +0900
++++ b/clang/lib/CodeGen/Targets/RISCV.cpp	2026-11-12 07:36:57.860246391 +0900
+@@ -1130,6 +1130,9 @@
+       case RISCVInterruptAttr::qcinonest:
+         Kind = "qci-nonest";
+         break;
++      case RISCVInterruptAttr::WCHInterruptFast:
++        Kind = "WCH-Interrupt-fast";
++        break;
+       // There are three different LLVM IR attribute values for SiFive CLIC
+       // interrupt kinds, one for each kind and one extra for their combination.
+       case RISCVInterruptAttr::SiFiveCLICPreemptible: {
+diff -ruN a/clang/lib/Sema/SemaRISCV.cpp b/clang/lib/Sema/SemaRISCV.cpp
+--- a/clang/lib/Sema/SemaRISCV.cpp	2026-11-12 07:36:39.324426346 +0900
++++ b/clang/lib/Sema/SemaRISCV.cpp	2026-11-12 07:36:57.854820878 +0900
+@@ -1691,8 +1691,9 @@
+     case RISCVInterruptAttr::rnmi:
+     case RISCVInterruptAttr::qcinest:
+     case RISCVInterruptAttr::qcinonest:
+-      // "supervisor", "rnmi" and "qci-(no)nest" cannot be combined with any
+-      // other types
++    case RISCVInterruptAttr::WCHInterruptFast:
++      // "supervisor", "rnmi", "qci-(no)nest" and "WCH-Interrupt-fast" cannot
++      // be combined with any other types
+       HasUnaryType = true;
+       break;
+     }
+diff -ruN a/llvm/lib/Target/RISCV/RISCVCallingConv.td b/llvm/lib/Target/RISCV/RISCVCallingConv.td
+--- a/llvm/lib/Target/RISCV/RISCVCallingConv.td	2026-11-12 07:36:39.375790382 +0900
++++ b/llvm/lib/Target/RISCV/RISCVCallingConv.td	2026-11-12 07:36:57.869821116 +0900
+@@ -96,6 +96,18 @@
+ def CSR_XLEN_F64_V_Interrupt_RVE: CalleeSavedRegs<(sub CSR_XLEN_F64_V_Interrupt,
+                                                    (sequence "X%u", 16, 31))>;
+ 
++// WCH-Interrupt-fast: the QingKe core's HPE saves and restores ra, t0-t6 and
++// a0-a7 (ra, t0-t2 and a0-a5 on RV32E) itself, so the handler saves the
++// rest: the callee-saved integer registers and the floating-point registers.
++defvar WCH_HPE_Saved = (add X1, (sequence "X%u", 5, 7), (sequence "X%u", 10, 17),
++                            (sequence "X%u", 28, 31));
++def CSR_WCH_Interrupt : CalleeSavedRegs<(sub CSR_Interrupt, WCH_HPE_Saved)>;
++def CSR_WCH_F32_Interrupt : CalleeSavedRegs<(sub CSR_XLEN_F32_Interrupt, WCH_HPE_Saved)>;
++def CSR_WCH_F64_Interrupt : CalleeSavedRegs<(sub CSR_XLEN_F64_Interrupt, WCH_HPE_Saved)>;
++def CSR_WCH_Interrupt_RVE : CalleeSavedRegs<(sub CSR_Interrupt_RVE, WCH_HPE_Saved)>;
++def CSR_WCH_F32_Interrupt_RVE : CalleeSavedRegs<(sub CSR_XLEN_F32_Interrupt_RVE, WCH_HPE_Saved)>;
++def CSR_WCH_F64_Interrupt_RVE : CalleeSavedRegs<(sub CSR_XLEN_F64_Interrupt_RVE, WCH_HPE_Saved)>;
++
+ def CSR_RT_MostRegs : CalleeSavedRegs<(sub CSR_Interrupt, X6, X7, X28)>;
+ def CSR_RT_MostRegs_RVE : CalleeSavedRegs<(sub CSR_RT_MostRegs,
+                                                (sequence "X%u", 16, 31))>;
+diff -ruN a/llvm/lib/Target/RISCV/RISCVISelLowering.cpp b/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+--- a/llvm/lib/Target/RISCV/RISCVISelLowering.cpp	2026-11-12 07:36:39.350103502 +0900
++++ b/llvm/lib/Target/RISCV/RISCVISelLowering.cpp	2026-11-12 07:36:57.866821052 +0900
+@@ -25441,6 +25441,7 @@
+         "SiFive-CLIC-preemptible",
+         "SiFive-CLIC-stack-swap",
+         "SiFive-CLIC-preemptible-stack-swap",
++        "WCH-Interrupt-fast",
+     };
+     if (!llvm::is_contained(SupportedInterruptKinds, Kind))
+       reportFatalUsageError(
+diff -ruN a/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp b/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp
+--- a/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp	2026-11-12 07:36:39.363599458 +0900
++++ b/llvm/lib/Target/RISCV/RISCVRegisterInfo.cpp	2026-11-12 07:36:57.869661790 +0900
+@@ -72,6 +72,18 @@
+     return Subtarget.hasStdExtE() ? CSR_RT_MostRegs_RVE_SaveList
+                                   : CSR_RT_MostRegs_SaveList;
+   if (MF->getFunction().hasFnAttribute("interrupt")) {
++    // WCH's HPE has saved the integer caller-saved registers already.
++    if (MF->getFunction().getFnAttribute("interrupt").getValueAsString() ==
++        "WCH-Interrupt-fast") {
++      if (Subtarget.hasStdExtD())
++        return Subtarget.hasStdExtE() ? CSR_WCH_F64_Interrupt_RVE_SaveList
++                                      : CSR_WCH_F64_Interrupt_SaveList;
++      if (Subtarget.hasStdExtF())
++        return Subtarget.hasStdExtE() ? CSR_WCH_F32_Interrupt_RVE_SaveList
++                                      : CSR_WCH_F32_Interrupt_SaveList;
++      return Subtarget.hasStdExtE() ? CSR_WCH_Interrupt_RVE_SaveList
++                                    : CSR_WCH_Interrupt_SaveList;
++    }
+     if (Subtarget.hasVInstructions()) {
+       if (Subtarget.hasStdExtD())
+         return Subtarget.hasStdExtE() ? CSR_XLEN_F64_V_Interrupt_RVE_SaveList

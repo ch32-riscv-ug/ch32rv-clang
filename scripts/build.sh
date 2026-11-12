@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Build a RISC-V-only clang + lld (+ the binutils-like LLVM tools an Arduino
-# build calls) and pack it as one archive with a single root directory.
+# build calls) and stage it in work/stage/ch32rv-clang. The target libraries
+# (build-runtimes.sh) and GDB (build-gdb.sh) go into the same directory, and
+# pack.sh checks and packs it.
 #
 #   scripts/build.sh <llvm version> <package version> <target triple>
 #   scripts/build.sh 23.1.5 23.1.5-1 x86_64-unknown-linux-gnu
-#
-# Out: dist/ch32rv-clang-<package version>-<target>.tar.gz (.zip on Windows)
-#      and <archive>.sha256.
 #
 # Environment: JOBS (parallel compile jobs, default: all CPUs), LINK_JOBS
 # (parallel link jobs, default 2), CCACHE=1 to compile through ccache,
@@ -56,6 +55,11 @@ if [ ! -d "$SRC" ]; then
     --exclude="$top/lldb" --exclude="$mlgo/combine_training_corpus.py" \
     --exclude="$mlgo/extract_ir.py" --exclude="$mlgo/make_corpus.py"
   rm -f "$WORK/src.tar.xz"
+  # Our changes to LLVM (patches/, applied in order).
+  for p in "$ROOT"/patches/*.patch; do
+    [ -e "$p" ] || continue
+    patch -d "$SRC" -p1 --forward < "$p"
+  done
 fi
 
 # 2. Configure. Only the RISCV backend; clang and lld; no tests, examples,
@@ -139,21 +143,3 @@ EOF
 "$STAGE/bin/clang$ext" --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e -Oz \
   -nostdlib -fuse-ld=lld "$WORK/smoke.c" -o "$WORK/smoke.elf"
 "$STAGE/bin/llvm-size$ext" "$WORK/smoke.elf"
-
-# 6. Pack.
-cd "$WORK/stage"
-if [ "$WINDOWS" = 1 ]; then
-  archive=$DIST/$PKG.zip
-  rm -f "$archive"
-  7z a -tzip -mx=9 "$archive" "$NAME" > /dev/null
-else
-  archive=$DIST/$PKG.tar.gz
-  tar -czf "$archive" "$NAME"
-fi
-cd "$DIST"
-if command -v sha256sum > /dev/null; then
-  sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256"
-else
-  shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256"
-fi
-ls -l "$archive"

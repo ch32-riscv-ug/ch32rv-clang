@@ -1,5 +1,10 @@
-# Build the RISC-V-only clang + lld for every host the Arduino Boards Manager
+# Build the RISC-V-only clang + lld, the target libraries (picolibc,
+# compiler-rt, libc++) and GDB for every host the Arduino Boards Manager
 # serves, and publish them as one GitHub release.
+#
+# The target libraries are the same on every host: the runtimes job builds
+# them once, with upstream's own release of the same LLVM, and each host's
+# package takes that tree.
 #
 # Run: push a tag v<package version>, or start it by hand with the package
 # version. The package version is <LLVM version>-<build> (e.g. 23.1.5-1); the
@@ -42,8 +47,41 @@ jobs:
           echo "pkg=$pkg" >> "$GITHUB_OUTPUT"
           echo "llvm=$llvm" >> "$GITHUB_OUTPUT"
 
-  build:
+  runtimes:
     needs: versions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install meson==1.12.1 cmake==4.4.4 ninja
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      - name: LLVM release and source
+        shell: bash
+        run: |
+          v="${{ needs.versions.outputs.llvm }}"
+          base=https://github.com/llvm/llvm-project/releases/download/llvmorg-$v
+          mkdir -p "$RUNNER_TEMP/llvm"
+          curl -fsSL "$base/LLVM-$v-Linux-X64.tar.xz" | tar -xJ -C "$RUNNER_TEMP/llvm" --strip-components=1
+          top=llvm-project-$v.src
+          curl -fsSL "$base/$top.tar.xz" | tar -xJ -C "$RUNNER_TEMP" \
+            --exclude="$top/llvm/test" --exclude="$top/clang/test" --exclude="$top/lld/test" --exclude="$top/lldb"
+          echo "LLVM_SRC=$RUNNER_TEMP/$top" >> "$GITHUB_ENV"
+      - name: Build
+        shell: bash
+        run: |
+          scripts/build-runtimes.sh "$RUNNER_TEMP/llvm" "$LLVM_SRC"
+          tar -czf runtimes.tar.gz -C "$RUNNER_TEMP/llvm" lib/clang-runtimes include/c++ licenses
+          ls -l runtimes.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtimes
+          path: runtimes.tar.gz
+          if-no-files-found: error
+
+  build:
+    needs: [versions, runtimes]
     strategy:
       fail-fast: false
       matrix:
@@ -65,7 +103,7 @@ jobs:
 
       - name: Tools (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake ccache
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake ccache m4
 
       - name: Tools (macOS)
         if: runner.os == 'macOS'
@@ -78,6 +116,15 @@ jobs:
       - name: MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+
+      # GDB on Windows is a MinGW program (GDB does not build with MSVC).
+      - name: MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc make m4 diffutils
 
       # Restored here and saved after the build even when it fails, so a run
       # that stops late (packing, the smoke test) leaves the next one fast.
@@ -105,6 +152,25 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ matrix.target }}-${{ needs.versions.outputs.llvm }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: GDB
+        if: runner.os != 'Windows'
+        shell: bash
+        run: scripts/build-gdb.sh work/stage/ch32rv-clang
+
+      - name: GDB (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: scripts/build-gdb.sh "$(cygpath -u "$GITHUB_WORKSPACE")/work/stage/ch32rv-clang" x86_64-w64-mingw32
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtimes
+          path: runtimes
+
+      - name: Pack
+        shell: bash
+        run: scripts/pack.sh "${{ needs.versions.outputs.pkg }}" "${{ matrix.target }}" runtimes/runtimes.tar.gz
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
@@ -115,10 +181,20 @@ jobs:
     needs: [versions, build]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: "*-*-*"
           path: dist
           merge-multiple: true
+      # GDB is GPL and GMP / MPFR LGPL: their exact sources go with the binaries.
+      - name: Sources
+        run: |
+          mkdir -p dist/sources
+          scripts/build-gdb.sh --sources | while read -r url; do
+            curl -fsSL -o "dist/sources/${url##*/}" "$url"
+          done
+          mv dist/sources/* dist/
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,5 +203,5 @@ jobs:
           ls -l dist
           gh release create "$tag" dist/* --repo "${{ github.repository }}" \
             --title "ch32rv-clang ${{ needs.versions.outputs.pkg }} (LLVM ${{ needs.versions.outputs.llvm }})" \
-            --notes "RISC-V-only clang + lld from LLVM ${{ needs.versions.outputs.llvm }}, for the CH32 Arduino core. See README." \
+            --notes "RISC-V-only clang + lld from LLVM ${{ needs.versions.outputs.llvm }} with picolibc, compiler-rt, libc++ and GDB, for the CH32 Arduino core. See README. The gdb, gmp, mpfr and expat archives are the sources of the GDB in the packages." \
             || gh release upload "$tag" dist/* --repo "${{ github.repository }}" --clobber
