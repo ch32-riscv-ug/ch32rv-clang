@@ -75,11 +75,14 @@ void *sbrk(ptrdiff_t n) {
   return p;
 }
 EOF
-for m in "rv32ec_zicsr_xwchc ilp32e" "rv32ec_zmmul_zicsr_xwchc ilp32e" "rv32imc_zicsr_xwchc ilp32" \
-         "rv32imac_zicsr ilp32" "rv32imac_zicsr_xwchc ilp32" "rv32imafc_zicsr_xwchc ilp32f"; do
+# Every variant, with and without XW, and lld as the default linker (no
+# -fuse-ld): the host's GNU ld cannot link RISC-V, so a wrong default fails here.
+for m in "rv32ec ilp32e" "rv32ec_zicsr_xwchc ilp32e" "rv32ec_zmmul_zicsr_xwchc ilp32e" \
+         "rv32imc_zicsr ilp32" "rv32imc_zicsr_xwchc ilp32" "rv32imac_zicsr ilp32" "rv32imac_zicsr_xwchc ilp32" \
+         "rv32imafc_zicsr ilp32f" "rv32imafc_zicsr_xwchc ilp32f"; do
   set -- $m
   "$STAGE/bin/clang++$ext" --target=riscv32-unknown-elf -march="$1" -mabi="$2" -Oz \
-    -fno-exceptions -fno-rtti -nostartfiles -fuse-ld=lld \
+    -fno-exceptions -fno-rtti -nostartfiles \
     -x c++ "$WORK/smoke.cpp" -x c "$WORK/smoke-glue.c" -o "$WORK/smoke-$1.elf" \
     -nostdlib -lc++ -lc -lclang_rt.builtins
   "$STAGE/bin/llvm-size$ext" "$WORK/smoke-$1.elf" | tail -n 1

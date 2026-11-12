@@ -32,11 +32,14 @@ Only the RISCV backend is built. clang reads
 
 | Library build | Instruction set | Series |
 |---|---|---|
-| `rv32ec_xwchc/ilp32e` | rv32ec + XW | CH32V003, V00x |
-| `rv32imc_xwchc/ilp32` | rv32imc + XW | CH32V205, M030 |
-| `rv32imac/ilp32` | rv32imac | CH32V103 (no XW) |
-| `rv32imac_xwchc/ilp32` | rv32imac + XW | V20x, L103, X035, V407 |
-| `rv32imafc_xwchc/ilp32f` | rv32imafc + XW | V30x, X315, H41x |
+| `rv32ec/ilp32e`, `rv32ec_xwchc/ilp32e` | rv32ec | CH32V003, V00x, M007 |
+| `rv32imc/ilp32`, `rv32imc_xwchc/ilp32` | rv32imc | CH32V205, M030 |
+| `rv32imac/ilp32`, `rv32imac_xwchc/ilp32` | rv32imac | V103 (no XW), V20x, L103, X035, V407 |
+| `rv32imafc/ilp32f`, `rv32imafc_xwchc/ilp32f` | rv32imafc | V30x, X315, H41x |
+
+Each instruction set has a build with WCH's XW and one without: a
+`-march` with `_xwchc` takes the first. Every QingKe core but the V3A
+(CH32V103) has XW.
 
 The libraries are built at `-Oz`. picolibc's printf / scanf default to the
 integer-only variants (the floating-point ones are `__f_vfprintf`,
@@ -62,17 +65,16 @@ TC=/path/to/ch32rv-toolchain
 $TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
   -Oz -ffunction-sections -fdata-sections -c main.c -o main.o
 $TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
-  -fuse-ld=lld -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
+  -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
   startup.o main.o -lc -lclang_rt.builtins -o app.elf
 $TC/bin/llvm-objcopy -O binary app.elf app.bin
 ```
 
 - **`-march` picks the libraries.** clang reads
   `lib/clang-runtimes/multilib.yaml` and links the build for the
-  instruction set (table above). Every QingKe core with rv32e, rv32imc or
-  rv32imafc has XW, so those need `_xwchc` in `-march` (a `-march` without it
-  stops with a message saying so); only rv32imac has a build without XW, for
-  CH32V103. Extensions on top (`_zmmul`, `_zba_zbb_zbs`) are fine.
+  instruction set, with XW when `-march` has `_xwchc` (table above).
+  Extensions on top (`_zmmul`, `_zba_zbb_zbs`) are fine. lld is the default
+  linker.
 - **Libraries to name.** With `-nostdlib`: `-lc` (picolibc; `-lm` is an
   empty stub), `-lclang_rt.builtins` (soft float, 64-bit division,
   `__riscv_save_N` for `-msave-restore`), and for C++ `-lc++ -lc++abi` before

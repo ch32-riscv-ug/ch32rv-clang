@@ -31,13 +31,15 @@ CH32 の Arduino コア（ArduinoCore-CH32RV）が Arduino のボードマネー
 `lib/clang-runtimes/multilib.yaml` を読んで合うライブラリを選ぶので、
 パスを指定する必要はありません。
 
-| ライブラリの種類 | 命令セット | 使う系列 |
+| ライブラリの種類 | 命令セット | 系列 |
 |---|---|---|
-| `rv32ec_xwchc/ilp32e` | rv32ec + XW | CH32V003、V00x |
-| `rv32imc_xwchc/ilp32` | rv32imc + XW | CH32V205、M030 |
-| `rv32imac/ilp32` | rv32imac | CH32V103（XW が無い） |
-| `rv32imac_xwchc/ilp32` | rv32imac + XW | V20x、L103、X035、V407 |
-| `rv32imafc_xwchc/ilp32f` | rv32imafc + XW | V30x、X315、H41x |
+| `rv32ec/ilp32e`、`rv32ec_xwchc/ilp32e` | rv32ec | CH32V003、V00x、M007 |
+| `rv32imc/ilp32`、`rv32imc_xwchc/ilp32` | rv32imc | CH32V205、M030 |
+| `rv32imac/ilp32`、`rv32imac_xwchc/ilp32` | rv32imac | V103（XW が無い）、V20x、L103、X035、V407 |
+| `rv32imafc/ilp32f`、`rv32imafc_xwchc/ilp32f` | rv32imafc | V30x、X315、H41x |
+
+どの命令セットにも、WCH の XW 付きの版と XW 無しの版があります。`-march` に `_xwchc` が
+あれば XW 付きの版が選ばれます。XW を持たないのは QingKe V3A（CH32V103）だけです。
 
 ライブラリは `-Oz` でビルドします。picolibc の printf / scanf は、整数だけの版を
 既定にしています（浮動小数の版は `__f_vfprintf`、`__d_vfprintf` などで選べます）。
@@ -63,16 +65,14 @@ TC=/path/to/ch32rv-toolchain
 $TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
   -Oz -ffunction-sections -fdata-sections -c main.c -o main.o
 $TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
-  -fuse-ld=lld -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
+  -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
   startup.o main.o -lc -lclang_rt.builtins -o app.elf
 $TC/bin/llvm-objcopy -O binary app.elf app.bin
 ```
 
 - **ライブラリは `-march` で選ばれます。** clang が `lib/clang-runtimes/multilib.yaml` を
-  読み、命令セットに合う版をリンクします（上の表）。rv32e、rv32imc、rv32imafc の QingKe の
-  コアはどれも XW を持つので、`-march` に `_xwchc` が要ります（付けないと、その旨のエラーで
-  止まります）。XW 無しの版があるのは CH32V103 用の rv32imac だけです。`_zmmul` や
-  `_zba_zbb_zbs` を足すのはかまいません。
+  読み、命令セットに合う版をリンクします。`-march` に `_xwchc` があれば XW 付きの版です
+  （上の表）。`_zmmul` や `_zba_zbb_zbs` を足すのはかまいません。リンカーは既定で lld です。
 - **リンクで名前を挙げるライブラリ。** `-nostdlib` のときは `-lc`（picolibc。`-lm` は空）、
   `-lclang_rt.builtins`（ソフトウェアの浮動小数点、64 bit の割り算、`-msave-restore` の
   `__riscv_save_N`）、C++ ならその前に `-lc++ -lc++abi`。`-nostdlib` を付けなければ clang が

@@ -25,16 +25,21 @@ TRIPLE=riscv32-unknown-elf
 
 # <dir> <march> <mabi>: the multilib's directory under clang-runtimes and the
 # flags it is built with. One per base ISA and float ABI the CH32 cores have,
-# with WCH's XW compressed instructions (Xwchc): every QingKe core but the
-# V3A has them, so CH32V103 alone gets a plain rv32imac. XW shortens byte and
-# halfword loads and stores: memcpy / strcmp and the like lose 9-18%, strtol /
-# strtod 1-3%, float and math routines nothing. A board's other extras
-# (zmmul, zba/zbb/zbs) map onto these in multilib.yaml.
+# each with WCH's XW compressed instructions (Xwchc) and without. Every
+# QingKe core but the V3A has XW, so the Arduino core uses the XW builds
+# everywhere but CH32V103; the plain ones are for any other project, built
+# for a -march without XW (ch32fun's, for one). XW shortens byte and halfword
+# loads and stores: memcpy / strcmp and the like lose 9-18%, strtol / strtod
+# 1-3%, float and math routines nothing. A board's other extras (zmmul,
+# zba/zbb/zbs) map onto these in multilib.yaml.
 VARIANTS=(
+  "rv32ec/ilp32e rv32ec_zicsr ilp32e"
   "rv32ec_xwchc/ilp32e rv32ec_zicsr_xwchc ilp32e"
+  "rv32imc/ilp32 rv32imc_zicsr ilp32"
   "rv32imc_xwchc/ilp32 rv32imc_zicsr_xwchc ilp32"
   "rv32imac/ilp32 rv32imac_zicsr ilp32"
   "rv32imac_xwchc/ilp32 rv32imac_zicsr_xwchc ilp32"
+  "rv32imafc/ilp32f rv32imafc_zicsr ilp32f"
   "rv32imafc_xwchc/ilp32f rv32imafc_zicsr_xwchc ilp32f"
 )
 # Size first, as the sketches are built.
