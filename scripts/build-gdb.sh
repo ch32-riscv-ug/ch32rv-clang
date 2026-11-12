@@ -59,13 +59,13 @@ mkdir -p build-gmp build-mpfr build-expat build-gdb
 # it is the same code on every host. Its configure still wants an m4 (M4= to
 # name one). gnu17: GMP 6.3.0's configure tests are not valid C23, GCC 15's
 # default.
-( cd build-gmp && "../gmp-$GMP_VERSION/configure" "${host_args[@]}" --prefix="$DEPS" \
+( cd build-gmp && "../gmp-$GMP_VERSION/configure" ${host_args[@]+"${host_args[@]}"} --prefix="$DEPS" \
     --disable-shared --enable-static --disable-assembly CFLAGS="-O2 -std=gnu17" \
   && make -j "$JOBS" && make install )
-( cd build-mpfr && "../mpfr-$MPFR_VERSION/configure" "${host_args[@]}" --prefix="$DEPS" \
+( cd build-mpfr && "../mpfr-$MPFR_VERSION/configure" ${host_args[@]+"${host_args[@]}"} --prefix="$DEPS" \
     --with-gmp="$DEPS" --disable-shared --enable-static \
   && make -j "$JOBS" && make install )
-( cd build-expat && "../expat-$EXPAT_VERSION/configure" "${host_args[@]}" --prefix="$DEPS" \
+( cd build-expat && "../expat-$EXPAT_VERSION/configure" ${host_args[@]+"${host_args[@]}"} --prefix="$DEPS" \
     --disable-shared --enable-static --without-docbook --without-examples --without-tests \
   && make -j "$JOBS" && make install )
 
@@ -81,7 +81,7 @@ esac
 # things under lib/ and include/.
 GDB_INST=$WORK/inst
 rm -rf "$GDB_INST"
-( cd build-gdb && "../gdb-$GDB_VERSION/configure" "${host_args[@]}" \
+( cd build-gdb && "../gdb-$GDB_VERSION/configure" ${host_args[@]+"${host_args[@]}"} \
     --target=riscv32-unknown-elf --prefix="$GDB_INST" \
     --disable-nls --disable-werror --disable-sim --disable-gprofng \
     --disable-binutils --disable-ld --disable-gas --disable-gold --disable-gprof \
@@ -89,7 +89,7 @@ rm -rf "$GDB_INST"
     --without-python --without-guile --without-debuginfod --without-babeltrace \
     --without-lzma --without-zstd --without-xxhash --without-intel-pt \
     --with-gmp="$DEPS" --with-mpfr="$DEPS" --with-expat --with-libexpat-prefix="$DEPS" \
-    "${extra[@]}" \
+    ${extra[@]+"${extra[@]}"} \
   && make -j "$JOBS" all-gdb && make install-strip-gdb )
 # Only the program and its data directory: no manuals, and not the
 # gdb-add-index / gstack shell scripts (they drive a native gdb).
