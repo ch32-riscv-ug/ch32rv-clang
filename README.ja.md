@@ -53,6 +53,53 @@ WCH QingKe の「XW」圧縮命令は LLVM の `Xwchc` 拡張です
 （ch32-device-data のコア表）で決めます。XW のないコア（QingKe V3A、V4A）で
 使うと、最初の XW 命令でプログラムが止まります。
 
+## Arduino コアの外で使う
+
+アーカイブは、それだけで完結したベアメタル用のツールチェーンです。Arduino コアに
+依存するものは入っていません。好きな場所に展開して `bin/clang` を呼びます。
+
+```sh
+TC=/path/to/ch32rv-toolchain
+$TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
+  -Oz -ffunction-sections -fdata-sections -c main.c -o main.o
+$TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
+  -fuse-ld=lld -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
+  startup.o main.o -lc -lclang_rt.builtins -o app.elf
+$TC/bin/llvm-objcopy -O binary app.elf app.bin
+```
+
+- **ライブラリは `-march` で選ばれます。** clang が `lib/clang-runtimes/multilib.yaml` を
+  読み、命令セットに合う版をリンクします（上の表）。rv32e、rv32imc、rv32imafc の QingKe の
+  コアはどれも XW を持つので、`-march` に `_xwchc` が要ります（付けないと、その旨のエラーで
+  止まります）。XW 無しの版があるのは CH32V103 用の rv32imac だけです。`_zmmul` や
+  `_zba_zbb_zbs` を足すのはかまいません。
+- **リンクで名前を挙げるライブラリ。** `-nostdlib` のときは `-lc`（picolibc。`-lm` は空）、
+  `-lclang_rt.builtins`（ソフトウェアの浮動小数点、64 bit の割り算、`-msave-restore` の
+  `__riscv_save_N`）、C++ ならその前に `-lc++ -lc++abi`。`-nostdlib` を付けなければ clang が
+  自分で足しますが、`crt0.o` も探します。`crt0.o` は入っていないので、起動のコードは
+  プログラム側で用意します。
+- **picolibc がプログラムに任せるもの:** 何かを表示するなら `stdin` / `stdout` / `stderr`
+  （`FILE *const`。picolibc の `FDEV_SETUP_STREAM`）、メモリを確保するなら `sbrk()`（または、
+  picolibc の代わりの版が使うリンカーのシンボル `__heap_start` / `__heap_end`）、それに
+  `_exit()`。`time()` は `gettimeofday()` を、`clock()` は `times()` を呼びます。
+- **printf / scanf:** 既定は picolibc の整数だけの版です。`%f %e %g` を使うときは
+  `-Wl,--defsym=vfprintf=__d_vfprintf`（float だけなら `__f_vfprintf`）を、scanf は同じく
+  `vfscanf` / `__d_vfscanf` を指定します。
+- **C++:** 例外、RTTI、スレッドの無い libc++ です。`-fno-exceptions -fno-rtti` で
+  コンパイルします。`operator new` / `delete` は定義していないので、プログラム側で
+  （`malloc()` の上に）定義します。
+- **割り込みの関数:** 起動のコードで HPE を有効にしたなら（INTSYSCR の bit 0）、WCH の EVT と
+  同じく `__attribute__((interrupt("WCH-Interrupt-fast")))` が使えます。入れ子の深さは HPE の
+  段数（2 段、QingKe V4 は 3 段）以内にします。HPE を使わないなら、普通の
+  `__attribute__((interrupt))` です。
+- **デバッグ:** `bin/riscv32-unknown-elf-gdb` を、プローブの GDB サーバー（WCH の OpenOCD、
+  または `ch32rv gdb`）につなぎます。
+
+GCC 向けに書かれたプロジェクトは、置き換えるだけでは動きません。たとえば ch32fun
+（cnlohr/ch32fun a800cbd、2026-11-12 に試した）は、`$(PREFIX)-gcc` を呼び、GCC だけの
+オプション（`-fno-tree-loop-distribute-patterns`）を渡し、C の文を含む naked 関数を
+持つので、clang はそこで止まります。ch32fun 側での対応が要ります。
+
 ## ホスト
 
 | ターゲット | ランナー | 備考 |

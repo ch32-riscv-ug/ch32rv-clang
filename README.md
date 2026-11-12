@@ -52,6 +52,57 @@ The WCH QingKe "XW" compressed instructions are LLVM's `Xwchc` extension
 business (ch32-device-data's core table): using it on a core without XW
 (QingKe V3A, V4A) stops the program at the first such instruction.
 
+## Using it outside the Arduino core
+
+The archive is a self-contained bare-metal toolchain; nothing in it is
+specific to the Arduino core. Unpack it anywhere and call `bin/clang`:
+
+```sh
+TC=/path/to/ch32rv-toolchain
+$TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
+  -Oz -ffunction-sections -fdata-sections -c main.c -o main.o
+$TC/bin/clang --target=riscv32-unknown-elf -march=rv32ec_zicsr_xwchc -mabi=ilp32e \
+  -fuse-ld=lld -nostdlib -nostartfiles -T your.ld -Wl,--gc-sections \
+  startup.o main.o -lc -lclang_rt.builtins -o app.elf
+$TC/bin/llvm-objcopy -O binary app.elf app.bin
+```
+
+- **`-march` picks the libraries.** clang reads
+  `lib/clang-runtimes/multilib.yaml` and links the build for the
+  instruction set (table above). Every QingKe core with rv32e, rv32imc or
+  rv32imafc has XW, so those need `_xwchc` in `-march` (a `-march` without it
+  stops with a message saying so); only rv32imac has a build without XW, for
+  CH32V103. Extensions on top (`_zmmul`, `_zba_zbb_zbs`) are fine.
+- **Libraries to name.** With `-nostdlib`: `-lc` (picolibc; `-lm` is an
+  empty stub), `-lclang_rt.builtins` (soft float, 64-bit division,
+  `__riscv_save_N` for `-msave-restore`), and for C++ `-lc++ -lc++abi` before
+  them. Without `-nostdlib` clang adds them itself, but also expects a
+  `crt0.o`, which is not shipped: the startup code is the program's.
+- **What picolibc leaves to the program:** `stdin` / `stdout` / `stderr`
+  (`FILE *const`, see picolibc's `FDEV_SETUP_STREAM`) if anything prints,
+  `sbrk()` (or the linker symbols `__heap_start` / `__heap_end` for its
+  fallback) if anything allocates, and `_exit()`. `time()` calls
+  `gettimeofday()`, `clock()` calls `times()`.
+- **printf / scanf:** `printf` and friends are picolibc's integer-only
+  variants by default. Link `-Wl,--defsym=vfprintf=__d_vfprintf` (or
+  `__f_vfprintf` for float only) for `%f %e %g`, and the same with
+  `vfscanf` / `__d_vfscanf` for scanf.
+- **C++:** libc++ without exceptions, RTTI or threads; compile with
+  `-fno-exceptions -fno-rtti`. It defines no `operator new` / `delete`: the
+  program does (over `malloc()`).
+- **Interrupt handlers:** `__attribute__((interrupt("WCH-Interrupt-fast")))`
+  as in WCH's EVT, when the startup code turns HPE on (INTSYSCR bit 0); keep
+  the nesting within HPE's depth (2 levels, 3 on QingKe V4). Plain
+  `__attribute__((interrupt))` otherwise.
+- **Debugging:** `bin/riscv32-unknown-elf-gdb` against a GDB server for the
+  probe (WCH's OpenOCD, or `ch32rv gdb`).
+
+Projects written for GCC do not take it as a drop-in replacement. ch32fun
+(cnlohr/ch32fun a800cbd, tried 2026-11-12), for one, calls `$(PREFIX)-gcc`,
+passes GCC-only options (`-fno-tree-loop-distribute-patterns`) and has
+naked functions with C statements in them, which clang rejects: it needs
+support on its side.
+
 ## Hosts
 
 | Target triple | Runner | Notes |

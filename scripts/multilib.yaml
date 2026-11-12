@@ -19,7 +19,21 @@ Variants:
   Flags: [--target=riscv32-unknown-unknown-elf, -mabi=ilp32, -fch32-rv32imac-xw]
 - Dir: rv32imafc_xwchc/ilp32f
   Flags: [--target=riscv32-unknown-unknown-elf, -mabi=ilp32f, -fch32-rv32imafc-xw]
+# Without XW the libraries are only built for rv32imac (CH32V103): every
+# QingKe core with rv32e, rv32imc or rv32imafc has XW, so say so rather than
+# fail at the link with "unable to find library -lc".
+- Error: "no libraries for this -march without XW: add _xwchc (e.g. -march=rv32ec_zicsr_xwchc); every CH32 core with this instruction set has WCH's XW. Only rv32imac (CH32V103) has libraries without it"
+  Flags: [--target=riscv32-unknown-unknown-elf, -fch32-noxw]
 Mappings:
+# rv32e, rv32imc and rv32imafc without XW: no libraries (the Error above).
+- Match: -march=rv32e2p0_c2p0(_zicsr[0-9p]+)?(_zmmul[0-9p]+)?(_zca[0-9p]+)?
+  Flags: [-fch32-noxw]
+- Match: -march=rv32e2p0(_zicsr[0-9p]+)?(_zmmul[0-9p]+)?
+  Flags: [-fch32-noxw]
+- Match: -march=rv32i2p1_m2p0_c2p0(_zicsr[0-9p]+)?(_zmmul[0-9p]+)?(_zca[0-9p]+)?
+  Flags: [-fch32-noxw]
+- Match: -march=rv32i2p1_m2p0_a2p1_f2p2_c2p0(_b[0-9p]+)?(_zicsr[0-9p]+)?(_zmmul[0-9p]+)?(_zaamo[0-9p]+)?(_zalrsc[0-9p]+)?(_zca[0-9p]+)?(_zcf[0-9p]+)?(_zba[0-9p]+)?(_zbb[0-9p]+)?(_zbs[0-9p]+)?
+  Flags: [-fch32-noxw]
 # rv32e with C and XW (CH32V003, the V00x)
 - Match: -march=rv32e2p0_c2p0(_zicsr[0-9p]+)?(_zmmul[0-9p]+)?(_zca[0-9p]+)?_xwchc[0-9p]+
   Flags: [-fch32-rv32ec-xw]
