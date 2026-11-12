@@ -155,12 +155,12 @@ jobs:
       - name: GDB
         if: runner.os != 'Windows'
         shell: bash
-        run: scripts/build-gdb.sh work/stage/ch32rv-clang
+        run: scripts/build-gdb.sh work/stage/ch32rv-toolchain
 
       - name: GDB (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: scripts/build-gdb.sh "$(cygpath -u "$GITHUB_WORKSPACE")/work/stage/ch32rv-clang" x86_64-w64-mingw32
+        run: scripts/build-gdb.sh "$(cygpath -u "$GITHUB_WORKSPACE")/work/stage/ch32rv-toolchain" x86_64-w64-mingw32
 
       - uses: actions/download-artifact@v4
         with:
@@ -202,6 +202,6 @@ jobs:
           tag="v${{ needs.versions.outputs.pkg }}"
           ls -l dist
           gh release create "$tag" dist/* --repo "${{ github.repository }}" \
-            --title "ch32rv-clang ${{ needs.versions.outputs.pkg }} (LLVM ${{ needs.versions.outputs.llvm }})" \
+            --title "ch32rv-toolchain ${{ needs.versions.outputs.pkg }} (LLVM ${{ needs.versions.outputs.llvm }})" \
             --notes "RISC-V-only clang + lld from LLVM ${{ needs.versions.outputs.llvm }} with picolibc, compiler-rt, libc++ and GDB, for the CH32 Arduino core. See README. The gdb, gmp, mpfr and expat archives are the sources of the GDB in the packages." \
             || gh release upload "$tag" dist/* --repo "${{ github.repository }}" --clobber

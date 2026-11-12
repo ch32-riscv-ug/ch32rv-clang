@@ -1,4 +1,4 @@
-# ch32rv-clang
+# ch32rv-toolchain
 
 [English](README.md)
 
@@ -10,7 +10,7 @@ CH32 の Arduino コア（ArduinoCore-CH32RV）が Arduino のボードマネー
 
 ## アーカイブの中身
 
-`ch32rv-clang/`（arduino-cli の決まりで、最上位のディレクトリは 1 つ）:
+`ch32rv-toolchain/`（arduino-cli の決まりで、最上位のディレクトリは 1 つ）:
 
 - `bin/`: `clang`、`clang++`、`ld.lld`（lld）、`llvm-ar`、`llvm-ranlib`、
   `llvm-objcopy`、`llvm-objdump`、`llvm-nm`、`llvm-size`、`llvm-readelf`、
@@ -74,9 +74,9 @@ WCH QingKe の「XW」圧縮命令は LLVM の `Xwchc` 拡張です
 
 ```sh
 scripts/build.sh 23.1.5 23.1.5-2 x86_64-unknown-linux-gnu   # clang（patches/ を当てる）
-scripts/build-runtimes.sh work/stage/ch32rv-clang work/llvm-project-23.1.5.src
-tar -czf runtimes.tar.gz -C work/stage/ch32rv-clang lib/clang-runtimes include/c++ licenses
-scripts/build-gdb.sh work/stage/ch32rv-clang
+scripts/build-runtimes.sh work/stage/ch32rv-toolchain work/llvm-project-23.1.5.src
+tar -czf runtimes.tar.gz -C work/stage/ch32rv-toolchain lib/clang-runtimes include/c++ licenses
+scripts/build-gdb.sh work/stage/ch32rv-toolchain
 scripts/pack.sh 23.1.5-2 x86_64-unknown-linux-gnu runtimes.tar.gz
 ```
 

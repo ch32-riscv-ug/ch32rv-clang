@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a RISC-V-only clang + lld (+ the binutils-like LLVM tools an Arduino
-# build calls) and stage it in work/stage/ch32rv-clang. The target libraries
+# build calls) and stage it in work/stage/ch32rv-toolchain. The target libraries
 # (build-runtimes.sh) and GDB (build-gdb.sh) go into the same directory, and
 # pack.sh checks and packs it.
 #
@@ -23,7 +23,7 @@ esac
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${WORK:-$ROOT/work}
 DIST=$ROOT/dist
-NAME=ch32rv-clang
+NAME=ch32rv-toolchain
 PKG=$NAME-$PKG_VERSION-$TARGET
 SRC=$WORK/llvm-project-$LLVM_VERSION.src
 BUILD=$WORK/build-$TARGET

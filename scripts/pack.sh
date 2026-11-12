@@ -4,7 +4,7 @@
 #
 #   scripts/pack.sh <package version> <target triple> <runtimes.tar.gz>
 #
-# Out: dist/ch32rv-clang-<package version>-<target>.tar.gz (.zip on Windows)
+# Out: dist/ch32rv-toolchain-<package version>-<target>.tar.gz (.zip on Windows)
 #      and <archive>.sha256.
 set -euo pipefail
 
@@ -15,7 +15,7 @@ RUNTIMES_ARCHIVE=${3:?runtimes archive (lib/clang-runtimes, include/c++, license
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${WORK:-$ROOT/work}
 DIST=$ROOT/dist
-NAME=ch32rv-clang
+NAME=ch32rv-toolchain
 PKG=$NAME-$PKG_VERSION-$TARGET
 STAGE=$WORK/stage/$NAME
 mkdir -p "$DIST"
